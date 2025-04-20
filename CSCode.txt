@@ -1,0 +1,236 @@
+お疲れ様です。伊藤孝です。
+
+EXCEL複数ファイルを一括で更新するためには、C#でClosedXMLを使用すると便利です。
+その方法や手順について説明します。
+
+C#の開発
+①　.NET SDKインストールが必要です。
+　　.NET SDK ダウンロードから入手してください。
+　　dotnet --version コマンドでバージョンが表示されれば正常にインストールされています。
+
+②　C# Dev Kit
+　　C#拡張機能（C# Dev Kit）のインストールが必要です。
+
+③　C#プロジェクトを作成
+　　ターミナル（Ctrl + Shift + P → 「新しいターミナル」）を開き、作業フォルダに移動して、以下のコマンドを実行。
+　　dotnet new winforms -n WinFormsApp
+　　cd WinFormsApp
+
+④　VSCodeでプロジェクトを開く
+　　code .
+
+⑤　ClosedXML
+　　ClosedXML を使用するには、NuGet パッケージ をプロジェクトに追加する必要があります。
+　　dotnet add package ClosedXML
+
+⑥　System.Windows.Forms を手動で追加
+　　dotnet add package System.Windows.Forms
+
+⑦　C#コード作成
+
+⑧　実行
+　　dotnet run
+
+
+Excel操作C#コードサンプルです。
+-------------------------------->>>
+using System;
+using System.IO;
+using System.Text;
+using System.Windows.Forms;     // Windowsフォームを利用するための参照
+using ClosedXML.Excel;
+using DocumentFormat.OpenXml.Wordprocessing;
+
+class InputDialog : Form
+{
+    private TextBox textBox1;   // シート名
+    private TextBox textBox2;   // 挿入列（名）
+    private TextBox textBox3;   // セル入力位置
+    private TextBox textBox4;   // セル入力文言
+    private Button okButton;    // OKボタン
+
+    public string InputText1 => textBox1.Text;  // シート名
+    public string InputText2 => textBox2.Text;  // 挿入列（名）
+    public string InputText3 => textBox3.Text;  // セル入力位置
+    public string InputText4 => textBox4.Text;  // セル入力文言
+
+    public InputDialog(string title)
+    {
+        this.Text = title;
+        this.Width = 400;
+        this.Height = 300;
+
+        Label label1 = new Label { Text = "処理対象のシート名（必須）", Left = 10, Top = 10, Width = 250 };
+        textBox1 = new TextBox { Left = 10, Top = 40, Width = 350 };
+        Label label2 = new Label { Text = "挿入列（例:\"C\" 空の場合は列を挿入しません）", Left = 10, Top = 80, Width = 300 };
+        textBox2 = new TextBox { Left = 10, Top = 110, Width = 100 };
+        Label label3 = new Label { Text = "セル入力位置（必須）", Left = 10, Top = 150, Width = 140 };
+        textBox3 = new TextBox { Left = 10, Top = 180, Width = 100 };
+        Label label4 = new Label { Text = "セル入力文言（必須）", Left = 150, Top = 150, Width = 200 };
+        textBox4 = new TextBox { Left = 150, Top = 180, Width = 210 };
+        okButton = new Button { Text = "OK", Left = 280, Top = 220, Width = 80 };
+        okButton.Click += (sender, e) => { this.DialogResult = DialogResult.OK; this.Close(); };
+
+        Controls.Add(label1);
+        textBox1.Text = "Sheet1";
+        Controls.Add(textBox1);
+        Controls.Add(label2);
+        textBox2.Text = "";
+        Controls.Add(textBox2);
+        Controls.Add(label3);
+        textBox3.Text = "C1";
+        Controls.Add(textBox3);
+        Controls.Add(label4);
+        textBox4.Text = "文言";
+        Controls.Add(textBox4);
+        Controls.Add(okButton);
+    }
+}
+
+class Program
+{
+    [STAThread]                 // 必須の属性（シングルスレッドアパートメントモデル）
+    static void Main()
+    {
+        // コンソールのエンコーディングを UTF-8 に設定
+        Console.OutputEncoding = Encoding.UTF8;
+        // フォルダパス
+        string folderPath = "";
+        // 操作するシート名
+        string sheetName = "";
+        // 挿入列
+        string insertColumn = "";
+        // セル入力位置
+        string sellPosition = "";
+        // セル入力文言
+        string sellText = "";
+        // GUIを綺麗にするための設定
+        Application.EnableVisualStyles();
+        // タイトル
+        string program_title = "Excel複数ファイル変更ツール";
+        // フォルダ選択処理
+        using (FolderBrowserDialog folderDialog = new FolderBrowserDialog())
+        {
+            // フォルダ選択：説明文言
+            folderDialog.Description = "フォルダを選択してください";
+            // フォルダ選択：初期表示フォルダ
+            // folderDialog.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            folderDialog.InitialDirectory = "";
+            // フォルダ選択コモンダイアログ表示
+            if (folderDialog.ShowDialog() == DialogResult.OK)
+            {
+                // 「フォルダーの選択」ボタン
+                folderPath = folderDialog.SelectedPath;
+                Console.WriteLine($"選択されたフォルダ: {folderPath}");
+                if (!Directory.Exists(folderPath))
+                {
+                    Console.WriteLine("指定されたフォルダが存在しません。");
+                    MessageBox.Show("指定されたフォルダが存在しません！\nプログラムを終了します。", program_title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Environment.Exit(-1);
+                }
+            }
+            else
+            {   // 「キャンセル」ボタン
+                Console.WriteLine("フォルダ選択がキャンセルされました。");
+                MessageBox.Show("フォルダ選択がキャンセルされました！\nプログラムを終了します。", program_title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Environment.Exit(-1);
+            }
+        }
+
+        using (InputDialog inputDialog = new InputDialog(program_title))
+        {
+            if (inputDialog.ShowDialog() == DialogResult.OK)
+            {
+                // 1.シート名の確認
+                if (inputDialog.InputText1 == "")
+                {
+                    MessageBox.Show("シート名が入力されていません！\nプログラムを終了します。", program_title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Environment.Exit(-1);
+                }
+                else
+                {
+                    sheetName = inputDialog.InputText1;
+                    Console.WriteLine($"シート名: {sheetName}");
+                }
+
+                // 2.挿入列（チェック不用）
+                insertColumn = inputDialog.InputText2;
+
+                // 3.セル入力位置の確認
+                if (inputDialog.InputText3 == "")
+                {
+                    MessageBox.Show("セル入力位置が入力されていません！\nプログラムを終了します。", program_title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Environment.Exit(-1);
+                }
+                else
+                {
+                    sellPosition = inputDialog.InputText3;
+                    Console.WriteLine($"セル入力位置: {sellPosition}");
+                }
+
+                // 4.セル入力文言の確認
+                if (inputDialog.InputText4 == "")
+                {
+                    MessageBox.Show("セル入力文言が入力されていません！\nプログラムを終了します。", program_title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Environment.Exit(-1);
+                }
+                else
+                {
+                    sellText = inputDialog.InputText4;
+                    Console.WriteLine($"セル入力文言: {sellText}");
+                }
+            }
+            else
+            {
+                MessageBox.Show("×ボタンがクリックされました！\nプログラムを終了します。", program_title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Environment.Exit(-1);
+            }
+        }
+
+        // フォルダ内の Excel ファイルを取得
+        var files = Directory.GetFiles(folderPath, "*.xlsx");
+       
+        // ファイル数分ループ
+        foreach (var filePath in files)
+        {
+            try
+            {
+                using (var workbook = new XLWorkbook(filePath))
+                {
+                    var worksheet = workbook.Worksheet(sheetName);
+
+                    // 2. 列を追加（?列目の後に新しい列を挿入）
+                    if (insertColumn != "")
+                    {
+                        worksheet.Column(insertColumn).InsertColumnsAfter(1);
+                    }
+
+                    // 3. 指定したセル位置にセル文言を設定
+                    worksheet.Cell(sellPosition).Value = sellText;
+
+                    // 4. セルD1とD2を結合
+                    // var mergedRange = worksheet.Range("D1:D2");
+                    // mergedRange.Merge();
+                   
+                    // 保存
+                    workbook.Save();
+                }
+
+                Console.WriteLine($"処理完了: {filePath}");
+       
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"エラー: {filePath} - {ex.Message}");
+                MessageBox.Show(string.Format($"異常終了\nFile: \"{Path.GetFileName(filePath)}\"\nError: {ex.Message}"), program_title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+        }
+        Console.WriteLine("全ファイルの処理が完了しました。");
+        MessageBox.Show("正常終了\n全ファイルの処理が完了しました。", program_title, MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+}
+<<<--------------------------------
+
+以上です。
+よろしくお願いいたします。
